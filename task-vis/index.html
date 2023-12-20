@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Daily Task Tracker with Chart and QR Code</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      flex-direction: column;
+    }
+
+    canvas {
+      margin-top: 20px;
+    }
+
+    #scan-container {
+      margin-top: 20px;
+      text-align: center;
+    }
+  </style>
+  <!-- Add Chart.js library -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Add qrcode-generator library -->
+  <script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
+  <!-- Add instascan library -->
+  <script src="https://rawgit.com/schmich/instascan-builds/master/instascan.min.js"></script>
+</head>
+<body>
+  <div>
+    <h1>Daily Task Tracker</h1>
+    <input type="checkbox" id="taskCheckbox" onchange="updateTaskStatus()">
+    <label for="taskCheckbox">Task Completed</label>
+    <canvas id="taskChart" width="400" height="200"></canvas>
+  </div>
+
+  <div id="scan-container">
+    <h2>Scan QR Code to Set Task</h2>
+    <video id="scanner" width="300" height="200"></video>
+  </div>
+
+  <script>
+    // Function to update task status
+    function updateTaskStatus() {
+      const taskCheckbox = document.getElementById('taskCheckbox');
+      const isTaskCompleted = taskCheckbox.checked;
+
+      // Make a POST request to the backend to update the task status
+      fetch('YOUR_API_ENDPOINT/tasks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ completed: isTaskCompleted }),
+      })
+      .then(response => response.json())
+      .then(data => {
+        console.log(data);
+        // Handle success, if needed
+        // Refresh the chart after updating the task status
+        updateChart();
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        // Handle error, if needed
+      });
+    }
+
+    // Function to get task status
+    function getTaskStatus() {
+      // Make a GET request to the backend to retrieve task status
+      fetch('YOUR_API_ENDPOINT/tasks')
+      .then(response => response.json())
+      .then(data => {
+        const taskCheckbox = document.getElementById('taskCheckbox');
+        if (data.length > 0) {
+          // Use the status of the latest task entry
+          taskCheckbox.checked = data[data.length - 1].completed;
+        } else {
+          // Default to unchecked if no task entries exist
+          taskCheckbox.checked = false;
+        }
+
+        // Refresh the chart after getting the task status
+        updateChart();
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        // Handle error, if needed
+      });
+    }
+
+    // Function to update the chart
+    function updateChart() {
+      // Make a GET request to the backend to retrieve task status history
+      fetch('YOUR_API_ENDPOINT/tasks')
+      .then(response => response.json())
+      .then(data => {
+        const dates = data.map(entry => entry.timestamp);
+        const completions = data.map(entry => entry.completed);
+
+        // Update the chart with the latest data
+        updateChartWithData(dates, completions);
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        // Handle error, if needed
+      });
+    }
+
+    // Function to update the chart with data
+    function updateChartWithData(dates, completions) {
+      const ctx = document.getElementById('taskChart').getContext('2d');
+      const taskChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: dates,
+          datasets: [{
+            label: 'Task Completion Status',
+            data: completions,
+            borderColor: 'rgba(75, 192, 192, 1)',
+            borderWidth: 1,
+            fill: false,
+            pointRadius: 5,
+            pointHoverRadius: 8,
+            pointBackgroundColor: completions.map(status => status ? 'green' : 'red'),
+          }],
+        },
+        options: {
+          scales: {
+            x: {
+              type: 'time',
+              time: {
+                unit: 'day',
+                displayFormats: {
+                  day: 'MMM D',
+                },
+              },
+            },
+            y: {
+              ticks: {
+                max: 1,
+                min: 0,
+                stepSize: 1,
+              },
+            },
+          },
+        },
+      });
+    }
+
+    // Function to generate QR code
+    function generateQRCode() {
+      const today = new Date().toISOString().split('T')[0];
+      const qrCodeText = `${window.location.origin}/setTask?date=${today}`;
+      const qr = new QRCode(document.getElementById('scanner'), qrCodeText);
+    }
+
+    // Function to handle QR code scanning
+    function startQRScanner() {
+      const scanner = new Instascan.Scanner({ video: document.getElementById('scanner') });
+
+      scanner.addListener('scan', function (content) {
+        // Make a POST request to the backend to set the task for the scanned date
+        fetch('YOUR_API_ENDPOINT/setTask', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ date: content, completed: true }),
+        })
+        .then(response => response.json())
+        .then(data => {
+          console.log(data);
+          // Handle success, if needed
+          // Refresh the chart after setting the task
+          updateChart();
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          // Handle error, if needed
+        });
+      });
+
+      Instascan.Camera.getCameras()
+        .then(cameras => {
+          if (cameras.length > 0) {
+            scanner.start(cameras[0]);
+          } else {
+            console.error('No cameras found.');
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+        });
+    }
+
+    // Load task status, chart, and QR code when the page loads
+    window.onload = () => {
+      getTaskStatus();
+      updateChart();
+      generateQRCode();
+      startQRScanner();
+    };
+  </script>
+</body>
+</html>
