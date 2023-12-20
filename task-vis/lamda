@@ -1,0 +1,41 @@
+const AWS = require('aws-sdk');
+const dynamoDB = new AWS.DynamoDB.DocumentClient();
+
+// Lambda function to add a task
+exports.addTask = async (event) => {
+  const body = JSON.parse(event.body);
+  const isTaskCompleted = body.completed;
+
+  // Your logic to add a task to the database with a timestamp
+  const timestamp = new Date().toISOString();
+  const params = {
+    TableName: 'YourTableName',
+    Item: {
+      timestamp,
+      completed: isTaskCompleted,
+    },
+  };
+
+  await dynamoDB.put(params).promise();
+
+  return {
+    statusCode: 200,
+    body: JSON.stringify({ message: 'Task added successfully' }),
+  };
+};
+
+// Lambda function to get a list of tasks
+exports.getTasks = async () => {
+  // Your logic to retrieve tasks from the database
+  const params = {
+    TableName: 'YourTableName',
+  };
+
+  const result = await dynamoDB.scan(params).promise();
+  const tasks = result.Items;
+
+  return {
+    statusCode: 200,
+    body: JSON.stringify(tasks),
+  };
+};
